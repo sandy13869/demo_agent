@@ -4,6 +4,7 @@ const express = require('express');
 const swaggerUi = require('swagger-ui-express');
 const swaggerJsdoc = require('swagger-jsdoc');
 const path = require('path');
+const { PORT } = require('./config/environment');
 
 const pricesRouter = require('./routes/prices');
 
@@ -27,11 +28,8 @@ const swaggerDefinition = {
   },
   servers: [
     {
-      url: 'http://localhost:{port}',
+      url: `http://localhost:${PORT}`,
       description: 'Local development server',
-      variables: {
-        port: { default: '3000', description: 'HTTP port (set via PORT env var)' },
-      },
     },
   ],
   tags: [
@@ -56,6 +54,8 @@ const swaggerSpec = swaggerJsdoc({
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
   customSiteTitle: 'Crypto Price Monitor — API Docs',
+  swaggerUrl: '/api-docs.json',
+  explorer: true,
 }));
 
 // Raw OpenAPI JSON (useful for tools like Postman, Insomnia)
