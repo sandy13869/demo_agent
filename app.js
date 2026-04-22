@@ -52,19 +52,7 @@ const swaggerSpec = swaggerJsdoc({
   ],
 });
 
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-  customSiteTitle: 'Crypto Price Monitor — API Docs',
-  swaggerUrl: '/api-docs.json',
-  explorer: true,
-}));
-
-// Raw OpenAPI JSON (useful for tools like Postman, Insomnia)
-app.get('/api-docs.json', (req, res) => {
-  res.setHeader('Content-Type', 'application/json');
-  res.send(swaggerSpec);
-});
-
-// ── Routes ────────────────────────────────────────────────────────────────────
+// ── API Routes (registered before Swagger middleware) ────────────────────────
 
 /**
  * @swagger
@@ -103,6 +91,22 @@ app.get('/health', (req, res) => {
 });
 
 app.use('/api/prices', pricesRouter);
+
+// Raw OpenAPI JSON — useful for Postman / Insomnia import
+app.get('/api-docs.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
+});
+
+// ── Swagger UI at http://localhost:PORT/ ──────────────────────────────────────
+// swaggerUi.serve  → serves swagger-ui static assets (css, js) for any path
+// swaggerUi.setup  → serves the HTML shell only for GET /
+app.use('/', swaggerUi.serve);
+app.get('/', swaggerUi.setup(swaggerSpec, {
+  customSiteTitle: 'Crypto Price Monitor — API Docs',
+  swaggerUrl: '/api-docs.json',
+  explorer: true,
+}));
 
 // 404 handler
 app.use((req, res) => {
