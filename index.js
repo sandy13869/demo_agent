@@ -1,11 +1,13 @@
 'use strict';
 
 // Must be first — loads and validates environment variables before anything else
-require('./config/environment');
+const env = require('./config/environment');
 
+const http = require('http');
 const logger = require('./logger');
 const db = require('./config/database');
 const scheduler = require('./services/scheduler');
+const app = require('./app');
 
 async function main() {
   logger.info('[main] Starting crypto price monitor agent...');
@@ -17,12 +19,21 @@ async function main() {
     process.exit(1);
   }
 
+  // ── HTTP server (Express + Swagger UI) ───────────────────────────────────
+  const server = http.createServer(app);
+  server.listen(env.PORT, () => {
+    logger.info(`[main] HTTP server listening on http://localhost:${env.PORT}`);
+    logger.info(`[main] Swagger UI → http://localhost:${env.PORT}/api-docs`);
+  });
+
+  // ── Scheduler ─────────────────────────────────────────────────────────────
   await scheduler.start();
 
   // ── Graceful shutdown ─────────────────────────────────────────────────────
   async function shutdown(signal) {
     logger.info(`[main] Received ${signal} — shutting down gracefully...`);
     scheduler.stop();
+    server.close(() => logger.info('[main] HTTP server closed.'));
     try {
       await db.disconnect();
     } catch (err) {

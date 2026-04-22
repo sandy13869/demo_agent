@@ -14,6 +14,7 @@ for (const key of REQUIRED) {
 
 module.exports = {
   MONGODB_URI: process.env.MONGODB_URI,
+  PORT: parseInt(process.env.PORT || '3000', 10),
   LOG_LEVEL: process.env.LOG_LEVEL || 'info',
   COINGECKO_BASE_URL:
     process.env.COINGECKO_BASE_URL || 'https://api.coingecko.com/api/v3',
