@@ -98,11 +98,37 @@ app.get('/api-docs.json', (req, res) => {
   res.send(swaggerSpec);
 });
 
-// ── Swagger UI at http://localhost:PORT/ ──────────────────────────────────────
-// swaggerUi.serve  → serves swagger-ui static assets (css, js) for any path
-// swaggerUi.setup  → serves the HTML shell only for GET /
-app.use('/', swaggerUi.serve);
-app.get('/', swaggerUi.setup(swaggerSpec, {
+// Simple browser landing page with service status tag
+app.get('/', (req, res) => {
+  res.status(200).send(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Crypto Price Monitor</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; padding: 32px; background: #f7fafc; color: #111827; }
+    .card { max-width: 640px; margin: 40px auto; background: #ffffff; border-radius: 14px; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
+    .tag { display: inline-block; padding: 8px 12px; border-radius: 999px; background: #16a34a; color: #ffffff; font-weight: 700; font-size: 12px; letter-spacing: 0.4px; }
+    h1 { margin: 16px 0 8px; font-size: 24px; }
+    p { margin: 0 0 16px; color: #374151; }
+    a { color: #0f766e; font-weight: 600; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <span class="tag">SERVER RUNNING</span>
+    <h1>Crypto Price Monitor API</h1>
+    <p>Service started successfully. Swagger docs are available below.</p>
+    <a href="/api-docs">Open API Docs</a>
+  </div>
+</body>
+</html>`);
+});
+
+// ── Swagger UI at http://localhost:PORT/api-docs ─────────────────────────────
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
   customSiteTitle: 'Crypto Price Monitor — API Docs',
   swaggerUrl: '/api-docs.json',
   explorer: true,
