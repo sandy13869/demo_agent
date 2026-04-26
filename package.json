@@ -1,28 +1,47 @@
 {
-  "name": "support",
+  "name": "crypto-price-monitor",
   "version": "1.0.0",
-  "description": "",
+  "description": "Autonomous agent that polls BTC/ETH prices from CoinGecko, stores upward movements in MongoDB, and exposes a documented REST API with Swagger UI.",
+  "author": "Sandeep",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest --forceExit",
+    "test:coverage": "jest --coverage --forceExit",
+    "test:watch": "jest --watch"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "crypto",
+    "bitcoin",
+    "ethereum",
+    "price-monitor",
+    "mongodb",
+    "express",
+    "coingecko"
+  ],
   "license": "ISC",
   "type": "commonjs",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "dependencies": {
     "axios": "^1.11.0",
+    "compression": "^1.8.0",
+    "cors": "^2.8.5",
     "dotenv": "^17.4.2",
     "express": "^5.1.0",
-    "mongo": "^0.1.0",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0",
     "mongoose": "^8.17.0",
-    "node": "^24.5.0",
     "node-cron": "^4.2.1",
-    "nodemon": "^3.1.10",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "winston": "^3.19.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "nodemon": "^3.1.10",
+    "supertest": "^7.0.0"
   }
 }

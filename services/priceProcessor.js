@@ -26,8 +26,7 @@ async function runCycle() {
     const latest = await getLatestRecord(symbol);
 
     if (!latest) {
-      // No previous record — insert baseline so future comparisons are valid
-      await insertRecord(symbol, currentPrice, null, null, 'baseline');
+      await insertRecord(symbol, currentPrice, null, null, null, 'baseline');
       continue;
     }
 
@@ -35,7 +34,10 @@ async function runCycle() {
 
     if (currentPrice > previousPrice) {
       const delta = parseFloat((currentPrice - previousPrice).toFixed(8));
-      await insertRecord(symbol, currentPrice, previousPrice, delta, 'price_increase');
+      const pctChange = parseFloat(
+        ((currentPrice - previousPrice) / previousPrice * 100).toFixed(4)
+      );
+      await insertRecord(symbol, currentPrice, previousPrice, delta, pctChange, 'price_increase');
     } else {
       logger.info(
         `[priceProcessor] ${symbol}: $${currentPrice} <= last stored $${previousPrice} — skip insert`
@@ -50,24 +52,24 @@ async function runCycle() {
  * Insert a PriceRecord document.
  * Duplicate key errors (same symbol+timestamp) are silently discarded.
  */
-async function insertRecord(symbol, priceUsd, previousPriceUsd, deltaUsd, reason) {
+async function insertRecord(symbol, priceUsd, previousPriceUsd, deltaUsd, percentageChange, reason) {
   try {
     const doc = new PriceRecord({
       symbol,
       priceUsd,
       previousPriceUsd,
       deltaUsd,
+      percentageChange,
       source: 'coingecko',
       timestamp: new Date(),
     });
     await doc.save();
     logger.info(
       `[priceProcessor] ${symbol} stored — $${priceUsd} (reason: ${reason})` +
-        (deltaUsd !== null ? ` delta: +$${deltaUsd}` : '')
+        (deltaUsd !== null ? ` delta: +$${deltaUsd} (+${percentageChange}%)` : '')
     );
   } catch (err) {
     if (err.code === 11000) {
-      // Unique index violation — harmless, skip
       logger.warn(`[priceProcessor] ${symbol}: duplicate record at same timestamp, skipped.`);
     } else {
       logger.error(`[priceProcessor] Failed to insert ${symbol} record: ${err.message}`);

@@ -5,6 +5,8 @@ const { PriceRecord, getLatestRecord } = require('../models/PriceRecord');
 
 const router = Router();
 
+const VALID_SYMBOLS = ['BTC', 'ETH'];
+
 /**
  * @swagger
  * components:
@@ -30,6 +32,11 @@ const router = Router();
  *           type: number
  *           nullable: true
  *           example: 4
+ *         percentageChange:
+ *           type: number
+ *           nullable: true
+ *           description: Percentage price increase relative to the previous stored price
+ *           example: 0.0051
  *         source:
  *           type: string
  *           example: coingecko
@@ -128,8 +135,8 @@ router.get('/latest', async (req, res) => {
  */
 router.get('/latest/:symbol', async (req, res) => {
   const symbol = req.params.symbol.toUpperCase();
-  if (!['BTC', 'ETH'].includes(symbol)) {
-    return res.status(400).json({ error: 'Invalid symbol. Use BTC or ETH.' });
+  if (!VALID_SYMBOLS.includes(symbol)) {
+    return res.status(400).json({ error: `Invalid symbol. Use ${VALID_SYMBOLS.join(' or ')}.` });
   }
   try {
     const record = await getLatestRecord(symbol);
@@ -170,6 +177,13 @@ router.get('/latest/:symbol', async (req, res) => {
  *           default: 50
  *         description: Maximum number of records to return
  *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Page number for offset-based pagination
+ *       - in: query
  *         name: from
  *         schema:
  *           type: string
@@ -185,7 +199,7 @@ router.get('/latest/:symbol', async (req, res) => {
  *         example: "2026-04-23T23:59:59.999Z"
  *     responses:
  *       200:
- *         description: List of price records
+ *         description: Paginated list of price records
  *         content:
  *           application/json:
  *             schema:
@@ -197,6 +211,16 @@ router.get('/latest/:symbol', async (req, res) => {
  *                 count:
  *                   type: integer
  *                   example: 12
+ *                 total:
+ *                   type: integer
+ *                   description: Total matching records (for pagination)
+ *                   example: 48
+ *                 page:
+ *                   type: integer
+ *                   example: 1
+ *                 pages:
+ *                   type: integer
+ *                   example: 4
  *                 records:
  *                   type: array
  *                   items:
@@ -216,8 +240,8 @@ router.get('/latest/:symbol', async (req, res) => {
  */
 router.get('/history/:symbol', async (req, res) => {
   const symbol = req.params.symbol.toUpperCase();
-  if (!['BTC', 'ETH'].includes(symbol)) {
-    return res.status(400).json({ error: 'Invalid symbol. Use BTC or ETH.' });
+  if (!VALID_SYMBOLS.includes(symbol)) {
+    return res.status(400).json({ error: `Invalid symbol. Use ${VALID_SYMBOLS.join(' or ')}.` });
   }
 
   const limit = Math.min(parseInt(req.query.limit || '50', 10), 500);
@@ -225,22 +249,41 @@ router.get('/history/:symbol', async (req, res) => {
     return res.status(400).json({ error: 'limit must be a positive integer (max 500).' });
   }
 
+  const page = parseInt(req.query.page || '1', 10);
+  if (isNaN(page) || page < 1) {
+    return res.status(400).json({ error: 'page must be a positive integer.' });
+  }
+
   const filter = { symbol };
   if (req.query.from || req.query.to) {
     filter.timestamp = {};
     if (req.query.from) filter.timestamp.$gte = new Date(req.query.from);
     if (req.query.to)   filter.timestamp.$lte = new Date(req.query.to);
-    if (isNaN(filter.timestamp.$gte) || isNaN(filter.timestamp.$lte)) {
+    const fromValid = !req.query.from || !isNaN(filter.timestamp.$gte);
+    const toValid   = !req.query.to   || !isNaN(filter.timestamp.$lte);
+    if (!fromValid || !toValid) {
       return res.status(400).json({ error: 'from/to must be valid ISO-8601 timestamps.' });
     }
   }
 
   try {
-    const records = await PriceRecord.find(filter)
-      .sort({ timestamp: -1 })
-      .limit(limit)
-      .lean();
-    res.json({ symbol, count: records.length, records });
+    const [total, records] = await Promise.all([
+      PriceRecord.countDocuments(filter),
+      PriceRecord.find(filter)
+        .sort({ timestamp: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+    ]);
+
+    res.json({
+      symbol,
+      count: records.length,
+      total,
+      page,
+      pages: Math.ceil(total / limit),
+      records,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -252,10 +295,19 @@ router.get('/history/:symbol', async (req, res) => {
  *   get:
  *     summary: Get aggregate price statistics for all symbols
  *     description: >
- *       Returns total stored records, min price, max price, and average price
- *       per symbol, computed across all stored price-increase records.
+ *       Returns total stored records, min/max/avg price, total accumulated delta,
+ *       and average percentage change per symbol.
+ *       Use the optional `window` parameter to scope stats to a recent time window.
  *     tags:
  *       - Prices
+ *     parameters:
+ *       - in: query
+ *         name: window
+ *         schema:
+ *           type: string
+ *           enum: [1h, 24h, 7d, 30d]
+ *         description: Restrict stats to records within this time window
+ *         example: 24h
  *     responses:
  *       200:
  *         description: Aggregated stats per symbol
@@ -278,6 +330,21 @@ router.get('/history/:symbol', async (req, res) => {
  *                   avgPriceUsd:
  *                     type: number
  *                     example: 80345.75
+ *                   totalDeltaUsd:
+ *                     type: number
+ *                     description: Sum of all upward price movements
+ *                     example: 4120.5
+ *                   avgPercentageChange:
+ *                     type: number
+ *                     nullable: true
+ *                     description: Average percentage increase per stored record
+ *                     example: 0.0312
+ *       400:
+ *         description: Invalid window value
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       500:
  *         description: Server error
  *         content:
@@ -286,8 +353,20 @@ router.get('/history/:symbol', async (req, res) => {
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/stats', async (req, res) => {
+  const WINDOW_MAP = { '1h': 1, '24h': 24, '7d': 168, '30d': 720 };
+
+  const matchStage = {};
+  if (req.query.window) {
+    if (!WINDOW_MAP[req.query.window]) {
+      return res.status(400).json({ error: 'window must be one of: 1h, 24h, 7d, 30d.' });
+    }
+    const hoursAgo = WINDOW_MAP[req.query.window];
+    matchStage.timestamp = { $gte: new Date(Date.now() - hoursAgo * 60 * 60 * 1000) };
+  }
+
   try {
     const pipeline = [
+      ...(Object.keys(matchStage).length ? [{ $match: matchStage }] : []),
       {
         $group: {
           _id: '$symbol',
@@ -295,6 +374,8 @@ router.get('/stats', async (req, res) => {
           minPriceUsd: { $min: '$priceUsd' },
           maxPriceUsd: { $max: '$priceUsd' },
           avgPriceUsd: { $avg: '$priceUsd' },
+          totalDeltaUsd: { $sum: { $ifNull: ['$deltaUsd', 0] } },
+          avgPercentageChange: { $avg: '$percentageChange' },
         },
       },
       { $sort: { _id: 1 } },
@@ -308,6 +389,10 @@ router.get('/stats', async (req, res) => {
         minPriceUsd: row.minPriceUsd,
         maxPriceUsd: row.maxPriceUsd,
         avgPriceUsd: parseFloat(row.avgPriceUsd.toFixed(2)),
+        totalDeltaUsd: parseFloat(row.totalDeltaUsd.toFixed(2)),
+        avgPercentageChange: row.avgPercentageChange !== null
+          ? parseFloat(row.avgPercentageChange.toFixed(4))
+          : null,
       };
     }
     res.json(result);

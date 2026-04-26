@@ -23,6 +23,10 @@ const priceRecordSchema = new mongoose.Schema(
       type: Number,
       default: null,
     },
+    percentageChange: {
+      type: Number,
+      default: null,
+    },
     source: {
       type: String,
       default: 'coingecko',

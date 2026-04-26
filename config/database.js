@@ -8,7 +8,8 @@ async function connect() {
   await mongoose.connect(MONGODB_URI, {
     serverSelectionTimeoutMS: 10000,
   });
-  logger.info(`[database] Connected to MongoDB: ${MONGODB_URI}`);
+  const maskedUri = MONGODB_URI.replace(/:\/\/[^@]+@/, '://***:***@');
+  logger.info(`[database] Connected to MongoDB: ${maskedUri}`);
 }
 
 async function disconnect() {
@@ -16,4 +17,8 @@ async function disconnect() {
   logger.info('[database] Disconnected from MongoDB');
 }
 
-module.exports = { connect, disconnect };
+function isConnected() {
+  return mongoose.connection.readyState === 1;
+}
+
+module.exports = { connect, disconnect, isConnected };
